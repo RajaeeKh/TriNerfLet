@@ -1,0 +1,173 @@
+name: "triplane-sr3-100-400"
+tag: "hotdog"
+exp_root_dir: "/home/rajaee/exps/threestudio"
+seed: 0
+
+data_type: "multiview-camera-sr-datamodule"
+data:
+  dataroot: "/home/rajaee/datasets/nerf_synthetic/nerf_synthetic/hotdog"
+  low_resolution: 100
+  high_resolution: 400
+  latent_scale: 1
+
+  load_high_res_gt: True
+  shuffle_batch: ${system.low_res_max_rays_before}
+  shuffle_steps: ${system.sr_start_step}
+
+system_type: "triplane-wavelet-sr-system"
+system:
+  sr_start_step: 6000
+  sr_planes_only: False
+  sr_min_res: 0
+  low_res_begining_only: False
+  learn_in_latent_space: False
+  hr_fit_mode_enabled: True
+  hr_fit_mode_refresh_every: 500
+  hr_crop: 512
+  hr_crop_align_wth_lr: True
+  hr_crop_render: False
+
+  hr_fit_not_use_est_steps: 0
+  low_res_max_rays_before: 10000
+  low_res_max_rays: 10000
+  render_hr_max_rays: 262144
+  save_full_sr_steps: True
+
+  use_test_lpips: True
+  hr_fit_interpolation_steps: 0
+  hr_fit_use_interpolation: True
+
+  automatic_optimization: False
+  fp16: False
+
+
+
+  geometry_type: "implicit-volume"
+  geometry:
+    n_feature_dims: 15
+    radius: 1.5
+    normal_type: analytic
+
+    pos_encoding_config:
+      otype: triplane_wavelet
+      triplane_channels: 16
+      triplane_resolution: 1024
+      triplane_wavelet_levels: 16
+      low_res_scale: 4
+      high_res_scale: 1
+      wavelet_type: bior6.8
+      wavelet_base_resolution: 0
+
+    density_bias: 0.0
+    density_activation: trunc_exp
+
+
+
+  material_type: "neural-radiance-material" #like instruct nerf2nerf
+  material:
+    input_feature_dims: ${system.geometry.n_feature_dims}
+    output_feature_dims: 3
+    color_activation: sigmoid
+
+    mlp_network_config:
+      otype: "VanillaMLP"
+      activation: "ReLU"
+      n_neurons: 64
+      n_hidden_layers: 2
+    #TODO
+    dir_encoding_config:
+      otype: SphericalHarmonics
+      degree: 4
+
+
+  background_type: "solid-color-background"
+  background:
+    color: [0,0,0]
+    n_output_dims: 3
+    learned: False
+
+  renderer_type: "nerf-volume-renderer"
+  renderer:
+    radius: ${system.geometry.radius}
+    num_samples_per_ray: 512
+    eval_chunk_size: 80000
+    occgrid_resolution: 128
+    grid_prune: True
+    prune_alpha_threshold: True
+    alpha_thre : 10
+
+
+  prompt_processor_type: "stable-diffusion-prompt-processor"
+  prompt_processor:
+    pretrained_model_name_or_path: "stabilityai/stable-diffusion-x4-upscaler"
+    prompt: "super resolution version"
+
+  guidance_type: "stable-diffusion-sr-guidance"
+  guidance:
+    pretrained_model_name_or_path: "stabilityai/stable-diffusion-x4-upscaler"
+    view_dependent_prompting: False
+    guidance_scale: 7.5
+#    weighting_strategy: sds
+    min_step_percent : 0.02
+    max_step_percent: 0.98
+    noise_level: 20
+    guidance_scale_sr: 10
+    apply_regular_unet: True
+    weighting_strategy: uniform
+#    grad_clip: 0.1
+
+    max_step_scheduler_enabled: True
+    max_step_scheduler:
+      start_step: ${system.sr_start_step}
+      total_steps : ${trainer.max_steps}
+      final_value: 0.25
+    apply_original_resolution: True
+    original_resolution_pad: True
+    cache_dir: /home/rajaee/hf_cache
+
+
+  loggers:
+    wandb:
+      enable: false
+      project: "threestudio"
+      name: None
+
+  #TODO: tune
+  loss:
+    lambda_l2_low_res: 1.
+    lambda_l2_high_res: 0
+    lambda_l1_high_res: 1
+    lambda_sds: 1e-7
+    lambda_wavelet: 0.4
+    lambda_lr_sr_consistency: 0
+    lambda_lr_sr_consistency_perceptual: 0.2
+    lambda_orient: 0
+    lambda_sparsity: 0
+    lambda_opaque: 0
+  optimizer:
+    name: Adam
+    args:
+      lr: 0.01
+      betas: [0.9, 0.99]
+      eps: 1.e-15
+  scheduler:
+    name: exp_decay
+    interval: step
+    warmup_steps: 0
+    warmup_factor: 1e-3
+    sched_base: 0.1
+    sched_exp: 1.5
+    max_steps: ${trainer.max_steps}
+
+trainer:
+  max_steps: 16000
+  log_every_n_steps: 1
+  num_sanity_val_steps: 0
+  val_check_interval: 2000
+  enable_progress_bar: true
+  precision: 32
+
+checkpoint:
+  save_last: true # save at each validation time
+  save_top_k: -1
+  every_n_train_steps: ${trainer.max_steps}

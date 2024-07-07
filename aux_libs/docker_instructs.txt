@@ -1,0 +1,20 @@
+docker build -f Dockerfile -t work_env .
+docker run --rm --gpus all -it --name test work_env bash
+docker run --rm --gpus device=7 -it --name test rajaeekh95/work_env bash
+docker run --rm --gpus device=7 -it --name test --entrypoint bash rajaeekh95/work_env
+docker run --rm --gpus all -it --name test --mount type=bind,src=/home/rajaee/datasets/nerf/nerf_synthetic/nerf_synthetic_10,dst=/home/dreamer/data  work_env bash
+docker run --rm --gpus device=7 -it --name test --entrypoint bash --mount type=bind,src=/data1/rajaee/,dst=/home/rajaee  rajaeekh95/work_env
+
+#clear all
+docker system prune -a
+
+#push image
+https://jsta.github.io/r-docker-tutorial/04-Dockerhub.html
+
+#run docker container in background
+docker run  --gpus device=5 -d -i -t --name test_threestudio --entrypoint bash --mount type=bind,src=/data1/rajaee/projects/threestudio,dst=/home/threestudio   threestudio
+#then connect to it:
+docker exec -it test_threestudio bash
+
+#ssh
+docker run  --gpus all  --name gaussian_splatting_daemon --mount type=bind,src=/home/rajaee,dst=/home/rajaee -d -p 2222:22  gaussian_splatting2
